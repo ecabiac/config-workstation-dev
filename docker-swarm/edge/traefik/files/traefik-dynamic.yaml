@@ -1,0 +1,13 @@
+tls:
+  stores:
+    default: {}
+
+  options:
+    default:
+      sniStrict: true
+      
+  certificates:
+    - certFile: "/usr/share/traefik/certs/publicadmin.devlocal.pem"
+      keyFile: "/usr/share/traefik/certs/publicadmin.devlocal.key.pem"
+    - certFile: "/usr/share/traefik/certs/docker.devlocal.pem"
+      keyFile: "/usr/share/traefik/certs/docker.devlocal.key.pem"

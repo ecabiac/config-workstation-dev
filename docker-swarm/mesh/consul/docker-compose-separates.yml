@@ -1,0 +1,273 @@
+---
+version: '3.7'
+
+# This compose file specifies 3 consul services to act as the master
+# nodes for the cluster. The services defined explicitly instead of
+# as replicas so that we can better control bootstrap and update scenarios.
+
+# when binding to host there are 2 interesting network adapters:
+# eth0
+# docker0
+
+services:
+  # The "server" service sets up a cluster with 3 master nodes.
+  # In a production environment, we would want these nodes to
+  # be deployed to different physical machines, and ideally to
+  # different zones. For the local development environment, we
+  # assign a label our node "zones_x1=A" to indicate our node is
+  # in "Zone A" in a single zone scheme. 
+  master1:
+    image: consul:1.7.4
+    command: |-
+      agent -server
+      -client="0.0.0.0"
+      -bind='0.0.0.0'
+      -advertise='${HOSTIP}'
+      -datacenter="devlocal"
+      -encrypt="r17mGUbowVkYC3Xo7dW+PQ=="
+      -bootstrap-expect=3
+      -retry-join="host.docker.internal:19301"
+      -retry-join="host.docker.internal:20301"
+      -http-port=18500
+      -serf-lan-port=18301
+      -serf-wan-port=18302
+      -server-port=18300
+      -dns-port=18600
+    environment:
+      CONSUL_LOCAL_CONFIG: |-
+          {
+             "leave_on_terminate": false,
+             "connect":
+             {
+               "enabled": true
+             }
+          }
+    
+    ports:
+      # server-port (tcp only)
+      - target: 18300
+        published: 18300
+        protocol: tcp
+        mode: host
+
+      # serf-lan-port (tcp & udp)
+      - target: 18301
+        published: 18301
+        protocol: tcp
+        mode: host
+      - target: 18301
+        published: 18301
+        protocol: udp
+        mode: host
+
+      # serf-wan-port (tcp & udp)
+      - target: 18302
+        published: 18302
+        protocol: tcp
+        mode: host
+      - target: 18302
+        published: 18302
+        protocol: udp
+        mode: host
+
+      # http-port (tcp only)
+      - target: 18500
+        published: 18500
+        protocol: tcp
+        mode: host
+       
+      # dns-port (tcp & udp)
+      - target: 18600
+        published: 18600
+        protocol: tcp
+        mode: host
+      - target: 18600
+        published: 18600
+        protocol: udp
+        mode: host
+
+    stop_grace_period: 1m30s
+
+    labels:
+      # registrator configs
+      SERVICE_IGNORE: "true"
+
+    deploy:
+      endpoint_mode: dnsrr
+      labels:
+        # traefik v2 configs
+        traefik.enabled: "false"
+    logging:
+      options:
+        tag: "{{.ImageName}}/{{.Name}}/{{.ID}}"
+
+  master2:
+    image: consul:1.7.4
+    command: |-
+      agent -server
+      -client="0.0.0.0"
+      -bind='0.0.0.0'
+      -advertise='${HOSTIP}'
+      -datacenter="devlocal"
+      -retry-join="host.docker.internal:18301"
+      -retry-join="host.docker.internal:20301"
+      -encrypt="r17mGUbowVkYC3Xo7dW+PQ=="
+      -bootstrap-expect=3
+      -http-port=19500
+      -serf-lan-port=19301
+      -serf-wan-port=19302
+      -server-port=19300
+      -dns-port=19600
+    environment:
+      CONSUL_LOCAL_CONFIG: |-
+          {
+             "leave_on_terminate": false,
+             "connect":
+             {
+               "enabled": true
+             }
+          }
+    
+    ports:
+      # server-port (tcp only)
+      - target: 19300
+        published: 19300
+        protocol: tcp
+        mode: host
+
+      # serf-lan-port (tcp & udp)
+      - target: 19301
+        published: 19301
+        protocol: tcp
+        mode: host
+      - target: 19301
+        published: 19301
+        protocol: udp
+        mode: host
+
+      # serf-wan-port (tcp & udp)
+      - target: 19302
+        published: 19302
+        protocol: tcp
+        mode: host
+      - target: 19302
+        published: 19302
+        protocol: udp
+        mode: host
+
+      # http-port (tcp only)
+      - target: 19500
+        published: 19500
+        protocol: tcp
+        mode: host
+       
+      # dns-port (tcp & udp)
+      - target: 19600
+        published: 19600
+        protocol: tcp
+        mode: host
+      - target: 19600
+        published: 19600
+        protocol: udp
+        mode: host
+
+    stop_grace_period: 1m30s
+
+    labels:
+      # registrator configs
+      SERVICE_IGNORE: "true"
+
+    deploy:
+      endpoint_mode: dnsrr
+      labels:
+        # traefik v2 configs
+        traefik.enabled: "false"
+    logging:
+      options:
+        tag: "{{.ImageName}}/{{.Name}}/{{.ID}}"
+
+
+  master3:
+    image: consul:1.7.4
+    command: |-
+      agent -server
+      -client="0.0.0.0"
+      -bind='0.0.0.0'
+      -advertise='${HOSTIP}'
+      -datacenter="devlocal"
+      -retry-join="host.docker.internal:18301"
+      -retry-join="host.docker.internal:19301"
+      -encrypt="r17mGUbowVkYC3Xo7dW+PQ=="
+      -bootstrap-expect=3
+      -http-port=20500
+      -serf-lan-port=20301
+      -serf-wan-port=20302
+      -server-port=20300
+      -dns-port=20600
+    environment:
+      CONSUL_LOCAL_CONFIG: |-
+          {
+             "leave_on_terminate": false,
+             "connect":
+             {
+               "enabled": true
+             }
+          }
+    
+    ports:
+      # server-port (tcp only)
+      - target: 20300
+        published: 20300
+        protocol: tcp
+        mode: host
+
+      # serf-lan-port (tcp & udp)
+      - target: 20301
+        published: 20301
+        protocol: tcp
+        mode: host
+      - target: 20301
+        published: 20301
+        protocol: udp
+        mode: host
+
+      # serf-wan-port (tcp & udp)
+      - target: 20302
+        published: 20302
+        protocol: tcp
+        mode: host
+      - target: 20302
+        published: 20302
+        protocol: udp
+        mode: host
+
+      # http-port (tcp only)
+      - target: 20500
+        published: 20500
+        protocol: tcp
+        mode: host
+       
+      # dns-port (tcp & udp)
+      - target: 20600
+        published: 20600
+        protocol: tcp
+        mode: host
+      - target: 20600
+        published: 20600
+        protocol: udp
+        mode: host
+
+    stop_grace_period: 1m30s
+
+    labels:
+      # registrator configs
+      SERVICE_IGNORE: "true"
+
+    deploy:
+      endpoint_mode: dnsrr
+      labels:
+        # traefik v2 configs
+        traefik.enabled: "false"
+    logging:
+      options:
+        tag: "{{.ImageName}}/{{.Name}}/{{.ID}}"

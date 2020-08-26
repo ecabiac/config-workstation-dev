@@ -1,0 +1,26 @@
+---
+version: '3.7'
+
+services:
+
+  redis:
+    image: redis:5.0.7
+    command: |
+      redis-server --appendonly yes
+    sysctls:
+      net.core.somaxconn: 1024
+      net.ipv4.tcp_syncookies: 0
+    networks:
+      default:
+      mesh-overlay:
+    ports:
+      - target: 6379
+        protocol: tcp
+        mode: host
+    deploy:
+      endpoint_mode: dnsrr
+      labels:
+        treafik.enable: "false"
+    logging:
+      options:
+        tag: "{{.ImageName}}/{{.Name}}/{{.ID}}"

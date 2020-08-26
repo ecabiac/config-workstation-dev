@@ -1,0 +1,43 @@
+---
+
+version: '3.7'
+
+services:
+
+  smtp4dev:
+    image: rnwood/smtp4dev:v3
+    networks:
+      mesh-overlay:
+        aliases:
+          - mail.smtp4dev.devlocal
+      # only needed because of the admin ui
+      edge-overlay:
+        aliases:
+          - smtp4dev.docker.devlocal
+    ports:
+      #SMTP Port
+      - target: 25
+        published: 2525
+        protocol: tcp
+        mode: host
+      # Web
+      - target: 80
+        protocol: tcp
+        mode: host
+    deploy:
+      replicas: 1
+      labels:
+        SERVICE_IGNORE:
+
+        # traefik v2 configs
+        traefik.enable: "true"
+        traefik.http.routers.smtp4dev.entrypoints: http,https
+        traefik.http.routers.smtp4dev.service: smtp4dev-service
+        traefik.http.routers.smtp4dev.rule: Host(`smtp4dev.docker.devlocal`)
+        traefik.http.services.smtp4dev-service.loadbalancer.server.port: 80
+
+networks:
+  edge-overlay:
+    external: true
+  mesh-overlay:
+    external: true

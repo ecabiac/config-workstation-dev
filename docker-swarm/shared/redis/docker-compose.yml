@@ -1,0 +1,182 @@
+---
+version: '3.7'
+
+services:
+
+  #redis_1:
+  decoy:
+    image: redis:5.0.7
+    command: |
+      redis-server --appendonly yes
+    #command: |
+    #  redis-server --slaveof redis_3 6379
+    sysctls:
+      net.core.somaxconn: 1024
+      net.ipv4.tcp_syncookies: 0
+    networks:
+      mesh-overlay:
+    ports:
+      - target: 6379
+        published: 6379
+        protocol: tcp
+        mode: host
+    deploy:
+      replicas: 0
+      endpoint_mode: dnsrr
+      resources:
+        limits:
+          cpus: '0.26'
+          memory: 50M
+        reservations:
+          cpus: '0.25'
+          memory: 20M
+      labels:
+        treafik.enable: "false"
+
+
+#  redis_2:
+#    image: redis:5.0.7
+#    command: |
+#      redis-server --slaveof redis_1 6379
+#    sysctls:
+#      net.core.somaxconn: 1024
+#      net.ipv4.tcp_syncookies: 0
+#    networks:
+#      mesh-overlay:
+#    ports:
+#      - target: 6379
+#        protocol: tcp
+#        mode: host
+#    deploy:
+#      endpoint_mode: dnsrr
+#      resources:
+#        limits:
+#          cpus: '0.26'
+#          memory: 50M
+#        reservations:
+#          cpus: '0.25'
+#          memory: 20M
+#      labels:
+#        treafik.enable: "false"
+#
+#  redis_3:
+#    image: redis:5.0.7
+#    command: |
+#      redis-server --slaveof redis_1 6379
+#    sysctls:
+#      net.core.somaxconn: 1024
+#      net.ipv4.tcp_syncookies: 0
+#    networks:
+#      mesh-overlay:
+#    ports:
+#      - target: 6379
+#        protocol: tcp
+#        mode: host
+#    deploy:
+#      endpoint_mode: dnsrr
+#      resources:
+#        limits:
+#          cpus: '0.26'
+#          memory: 50M
+#        reservations:
+#          cpus: '0.25'
+#          memory: 20M
+#      labels:
+#        treafik.enable: "false"
+
+  redis_replica:
+    image: ${REDIS_REPLICA_IMAGE}
+    #image: emc/redis-slave:5.0.7
+    #command: |
+    #  redis-server --slaveof redis_1 6379
+    environment:
+      REDIS_SENTINEL_SERVICE_HOST: redis_sentinel
+      REDIS_SENTINEL_SERVICE_PORT: 26379
+      CLUSTER_NAME: docker-redis
+    sysctls:
+      net.core.somaxconn: 1024
+      net.ipv4.tcp_syncookies: 0
+    networks:
+      mesh-overlay:
+    ports:
+      - target: 6379
+        protocol: tcp
+        mode: host
+    deploy:
+      endpoint_mode: dnsrr
+      resources:
+        limits:
+          cpus: '0.26'
+          memory: 50M
+        reservations:
+          cpus: '0.25'
+          memory: 20M
+      labels:
+        treafik.enable: "false"
+
+
+
+  sentinel:
+    image: emc/redis-sentinel:5.0.7
+    sysctls:
+      net.core.somaxconn: 1024
+      net.ipv4.tcp_syncookies: 0
+    environment:
+      - CLUSTER_NAME=docker-redis
+      - SENTINEL_QUORUM=1
+      - SENTINEL_DOWN_AFTER=5000
+      - SENTINEL_FAILOVER=5000
+      - MASTER_HOST=decoy
+    networks:
+      mesh-overlay:
+    ports:
+      - target: 26379
+        protocol: tcp
+        mode: host
+    deploy:
+      resources:
+        limits:
+          cpus: '0.26'
+          memory: 50M
+        reservations:
+          cpus: '0.25'
+          memory: 20M
+      endpoint_mode: dnsrr
+      replicas: 1
+      labels:
+        treafik.enable: "false"
+
+#  commander:
+#    image: rediscommander/redis-commander
+#    environment:
+#      HTTP_USER: redis
+#      HTTP_PASSWORD: redis
+#      #REDIS_HOSTS: docker-cluster:redis_1:6379,docker-cluster:redis_2:6379,docker-cluster:redis_3:6379
+#      #REDIS_HOSTS: redis_1,redis_2,redis_3
+#      #REDIS_HOSTS: redis_1
+#      SENTINEL_HOST: sentinel
+#      SENTINEL_PORT: 26379
+#      SENTINEL_NAME: docker-redis
+#    networks:
+#      mesh-overlay:
+#      edge-overlay:
+#    ports:
+#      - target: 8081
+#        protocol: tcp
+#        mode: host
+#    deploy:
+#      replicas: 1
+#      labels:
+#        # traefik v2 configs
+#        traefik.enable: "true"
+#        traefik.docker.network: edge-overlay
+#        traefik.http.routers.rediscommand.entrypoints: http
+#        traefik.http.routers.rediscommand.rule: Host(`redis.docker.devlocal`)
+#        traefik.http.services.rediscommand-service.loadbalancer.server.port: 8081
+
+
+networks:
+  edge-overlay:
+    external: true
+  mesh-overlay:
+    external: true

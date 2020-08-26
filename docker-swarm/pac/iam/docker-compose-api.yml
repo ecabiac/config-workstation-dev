@@ -1,0 +1,62 @@
+---
+
+version: '3.7'
+
+
+services:
+
+  identity-api:
+    image: superioncloud.azurecr.io/pac/cloud/iam-api:iam-api_master_20200818.5
+    environment:
+      ROSTER_API_URL: http://roster.pac-iam.devlocal/
+      DB_SERVER: sql_sqllinux
+      DB_NAME: idsrv2
+      DB_USER: sa
+      #DB_PASSWORD: P@ssword1
+      DB_PASSWORD_FILE: /var/run/secrets/API_DB_PASSWORD
+
+      SKIP_MIGRATE: "true"
+    networks:
+      # in a production environment we would not expose this
+      # on the edge network, but it is needed for local development
+      edge-overlay:
+        aliases:
+          - iam-api.publicadmin.devlocal
+      mesh-overlay:
+        aliases:
+          - iam-api.pac-iam.devlocal
+      #default:
+      #  aliases:
+      #    - iam-api.identitynet.devlocal
+    ports:
+      - target: 80
+        protocol: tcp
+        mode: host
+    secrets:
+      - API_DB_PASSWORD
+    labels:
+      # registrator configs
+      SERVICE_NAME: iam-api
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      update_config:
+        parallelism: 1
+        delay: 30s
+        order: start-first
+      labels:
+        SERVICE_NAME: iam-api
+        # traefik v2 configs
+        traefik.enable: "true"
+        traefik.docker.network: edge-overlay
+        traefik.http.routers.identity-api.entrypoints: http,https
+        traefik.http.routers.identity-api.rule: Host(`iam-api.publicadmin.devlocal`)
+        traefik.http.services.identity-api-service.loadbalancer.server.port: 80
+
+secrets:
+  API_DB_PASSWORD:
+    external: true
+    name: pac-iam_api-db-password

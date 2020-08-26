@@ -1,0 +1,175 @@
+---
+version: '3.7'
+
+services:
+
+  # The traefik server
+  traefikv2:
+    image: traefik:v2.2.8
+
+    command: ["--configFile=/usr/share/traefik/traefik.yaml"]
+    ports:
+
+      # Explicitly bind the traefik service to the Host on port 80 so that
+      # it will act as default HTTP web server for the local machine. Note
+      # that this will fail if the host has already allocated these ports
+      # to another process (such as IIS or Apache)
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: host
+
+      # Explicitly bind the traefik service to the Host on port 443 so that
+      # it will act as default HTTPS web server for the local machine. Note
+      # that this will fail if the host has already allocated these ports
+      # to another process (such as IIS or Apache)
+      - target: 443
+        published: 443
+        protocol: tcp
+        mode: host
+
+      # open up a port to test TCP routing to rabbitmq
+      - target: 5672
+        published: 5672
+        protocol: tcp
+        mode: host
+      
+      # 8080 is the UI endpoint for the container. 
+      # Expose it on an arbitrary port on the host
+      # and use Traefik itself to route to the UI
+      - target: 8080
+        published: 8080
+        protocol: tcp
+        mode: host
+
+    networks:
+      edge-overlay:
+      mesh-overlay:
+        aliases:
+          - sso.publicadmin.devlocal
+
+    labels:
+      # Tells any running registrator service (if there is one)
+      # to ignore, since there is no need to register traefik through
+      # consul (if using consul) since traefik is for our edge network.
+      SERVICE_IGNORE: "true"
+
+    # Since we are binding to explicit ports on the host we cannot run more
+    # than a single instance of this service per node, which in a local docker
+    # swarm means we can only have a single instance of the service.
+    deploy:
+      mode: global
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      update_config:
+        order: stop-first
+
+      labels:
+        # traefik v2 configs
+        traefik.enable: "true"
+        traefik.http.routers.traefikv2.rule: Host(`traefik.docker.devlocal`)
+        traefik.http.routers.traefikv2.entrypoints: http,https
+        traefik.http.services.traefikv2-service.loadbalancer.server.port: 8080
+    configs:
+      - source: static_config_yaml_v2
+        target: /usr/share/traefik/traefik.yaml
+      - source: dynamic_config_yaml_v2
+        target: /usr/share/traefik/traefik-dynamic.yaml
+      - source: tls_docker_devlocal_cert_v1
+        target: /usr/share/traefik/certs/docker.devlocal.pem
+      - source: tls_docker_devlocal_key_v1
+        target: /usr/share/traefik/certs/docker.devlocal.key.pem
+      - source: tls_publicadmin_devlocal_cert_v1
+        target: /usr/share/traefik/certs/publicadmin.devlocal.pem
+      - source: tls_publicadmin_devlocal_key_v1
+        target: /usr/share/traefik/certs/publicadmin.devlocal.key.pem
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+
+  auth:
+    image: ecabiac/traefik-auth:202005061214
+    ports:
+      - target: 80
+        protocol: tcp
+        mode: host
+    networks:
+      edge-overlay:
+    environment:
+        clients__master__openid__Authority: http://sso.publicadmin.devlocal/master
+        clients__master__openid__RequireHttpsMetadata: "false"
+        clients__master__openid__GetClaimsFromUserInfoEndpoint: "true"
+        clients__master__openid__ResponseType: "code id_token"
+        clients__master__openid__ClientId: "master-admin-console"
+        clients__master__openid__ClientSecret: "Secret"
+        clients__master__openid__CallbackPath: "/signin-master"
+        clients__master__openid__UseTokenLifetime: "false"
+        clients__master__openid__SaveTokens: "true"
+        clients__master__openid__Scopes: 'openid profile'
+        clients__master__openid__TokenValidationParameters__ValidateIssuer: "false"
+        clients__master__openid__TokenValidationParameters__NameClaimType: name
+        clients__master__openid__TokenValidationParameters__RoleClaimType: roles
+        clients__master__openid__ProtocolValidator__RequireState: "false"
+        clients__master__openid__RemoteSignOutPath: "/signout-master"
+        clients__master__openid__MetadataAddress: http://sso.publicadmin.devlocal/master/.well-known/openid-configuration
+    labels:
+      # registrator configs
+      # no need to register traefik through consul
+      SERVICE_IGNORE: "true"
+  
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      update_config:
+        order: stop-first
+      labels:
+        
+        # traefik v2 configs
+        traefik.enable: "true"
+
+        # this defines a forwardauth middleware instance named "iam-auth" 
+        # that this service provides
+        traefik.http.middlewares.iam-auth.forwardauth.address: http://traefik_auth
+        traefik.http.middlewares.iam-auth.forwardauth.trustForwardHeader: "true"
+        traefik.http.middlewares.iam-auth.forwardauth.authResponseHeaders: X-PublicAdmin-UserId,X-Superion-Login
+
+        traefik.http.services.realms-traefikauth-service.loadbalancer.server.port: 80
+        traefik.http.routers.realms-traefikauth.rule: HostRegexp(`{tenant:[a-z]+}.publicadmin.devlocal`) && PathPrefix(`/signin-{tenant:[a-z]+}`)
+        traefik.http.routers.realms-traefikauth.entrypoints: http,https
+        traefik.http.routers.realms-traefikauth.service: realms-traefikauth-service
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200k"
+        max-file: "10"
+
+networks:
+  # edge-overlay network is for exposing services to the host via traefik
+  edge-overlay:
+    external: true
+  mesh-overlay:
+    external: true
+
+#####################################################################
+# Docker configs cannot be modified or removed while they are in
+# use by a service, so whenever a source file is changed, the '_v#' 
+# suffix needs to be changed to an unused key.
+#####################################################################
+configs:
+  static_config_yaml_v2:
+    file: ./files/traefik.yaml
+  dynamic_config_yaml_v2:
+    file: ./files/traefik-dynamic.yaml
+  tls_docker_devlocal_cert_v1:
+    file: ./files/certs/docker.devlocal.pem
+  tls_docker_devlocal_key_v1:
+    file: ./files/certs/docker.devlocal.key
+  tls_publicadmin_devlocal_cert_v1:
+    file: ./files/certs/publicadmin.devlocal.pem
+  tls_publicadmin_devlocal_key_v1:
+    file: ./files/certs/publicadmin.devlocal.key
+  

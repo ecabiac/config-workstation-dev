@@ -1,0 +1,142 @@
+---
+version: '3.7'
+
+services:
+
+  app1:
+    image: nginx:latest
+    command: ["nginx","-g","daemon off;"]
+    ports:
+      - target: 80
+        protocol: tcp
+        mode: host
+    networks:
+      edge-overlay:
+        aliases:
+          - app1.abc.publicadmin.devlocal
+    labels:
+      # registrator configs
+      # no need to register with consul
+      SERVICE_IGNORE: "true"
+
+    deploy:
+      labels:
+        # traefik v2 configs
+        traefik.enable: "true"
+        traefik.http.routers.pac-tenant-abc-app1.entrypoints: http
+        traefik.http.routers.pac-tenant-abc-app1.rule: Host(`abc.publicadmin.devlocal`) && PathPrefix(`/app1`)
+        traefik.http.routers.pac-tenant-abc-app1.service: pac-tenant-abc-app1-service
+        traefik.http.services.pac-tenant-abc-app1-service.loadbalancer.server.port: 80
+    volumes:
+      - "emc-site:/usr/share/nginx/html"
+    logging:
+      options:
+        tag: "{{.ImageName}}/{{.Name}}/{{.ID}}"
+
+  app2:
+    image: nginx:latest
+    command: ["nginx","-g","daemon off;"]
+    ports:
+      - target: 80
+        protocol: tcp
+        mode: host
+    networks:
+      edge-overlay:
+        aliases:
+          - app2.abc.publicadmin.devlocal
+    labels:
+      # registrator configs
+      # no need to register with consul
+      SERVICE_IGNORE: "true"
+
+    deploy:
+      labels:
+        # traefik v2 configs
+        traefik.enable: "true"
+        traefik.http.routers.pac-tenant-abc-app3.entrypoints: http
+        traefik.http.routers.pac-tenant-abc-app3.rule: Host(`abc.publicadmin.devlocal`) && PathPrefix(`/app2`)
+        traefik.http.routers.pac-tenant-abc-app3.service: pac-tenant-abc-app2-service
+        traefik.http.services.pac-tenant-abc-app2-service.loadbalancer.server.port: 80
+    volumes:
+      - "emc-site:/usr/share/nginx/html"
+    logging:
+      options:
+        tag: "{{.ImageName}}/{{.Name}}/{{.ID}}"
+
+  auth:
+    image: traefik-auth:202003292252
+    ports:
+      - target: 80
+        protocol: tcp
+        mode: host
+    networks:
+      edge-overlay:
+        aliases: 
+    environment:
+        clients__abc-app1__openid__Authority: http://sso.publicadmin.devlocal/abc
+        clients__abc-app1__openid__RequireHttpsMetadata: "false"
+        clients__abc-app1__openid__GetClaimsFromUserInfoEndpoint: "true"
+        clients__abc-app1__openid__ResponseType: "code id_token"
+        clients__abc-app1__openid__ClientId: "abc-app1"
+        clients__abc-app1__openid__ClientSecret: "Secret"
+        clients__abc-app1__openid__CallbackPath: "/signin-app1"
+        clients__abc-app1__openid__UseTokenLifetime: "false"
+        clients__abc-app1__openid__SaveTokens: "true"
+        clients__abc-app1__openid__Scope: 'openid profile'
+        clients__abc-app1__openid__TokenValidationParameters__ValidateIssuer: "false"
+        clients__abc-app1__openid__TokenValidationParameters__NameClaimType: name
+        clients__abc-app1__openid__TokenValidationParameters__RoleClaimType: roles
+        clients__abc-app1__openid__ProtocolValidator__RequireState: "false"
+        clients__abc-app1__openid__RemoteSignOutPath: "/signout-app2"
+        clients__abc-app1__openid__MetadataAddress: http://sso.publicadmin.devlocal/abc/.well-known/openid-configuration
+
+        clients__abc-app2__openid__Authority: http://sso.publicadmin.devlocal/abc
+        clients__abc-app2__openid__RequireHttpsMetadata: "false"
+        clients__abc-app2__openid__GetClaimsFromUserInfoEndpoint: "true"
+        clients__abc-app2__openid__ResponseType: "code id_token"
+        clients__abc-app2__openid__ClientId: "abc-app2"
+        clients__abc-app2__openid__ClientSecret: "Secret"
+        clients__abc-app2__openid__CallbackPath: "/signin-app2"
+        clients__abc-app2__openid__UseTokenLifetime: "false"
+        clients__abc-app2__openid__SaveTokens: "true"
+        clients__abc-app2__openid__Scope: 'openid profile'
+        clients__abc-app2__openid__TokenValidationParameters__ValidateIssuer: "false"
+        clients__abc-app2__openid__TokenValidationParameters__NameClaimType: name
+        clients__abc-app2__openid__TokenValidationParameters__RoleClaimType: roles
+        clients__abc-app2__openid__ProtocolValidator__RequireState: "false"
+        clients__abc-app2__openid__RemoteSignOutPath: "/signout-app2"
+        clients__abc-app2__openid__MetadataAddress: http://sso.publicadmin.devlocal/abc/.well-known/openid-configuration
+
+    labels:
+      # registrator configs
+      # no need to register traefik through consul
+      SERVICE_IGNORE: "true"
+  
+    deploy:
+      labels:
+        
+        # traefik v2 configs
+        traefik.enable: "true"
+
+        # this defines a forwardauth middleware instance named "pac-abc-auth" 
+        # that this service provides
+        traefik.http.middlewares.pac-abc-auth.forwardauth.address: http://traefik_auth
+        traefik.http.middlewares.pac-abc-auth.forwardauth.trustForwardHeader: "true"
+        traefik.http.middlewares.pac-abc-auth.forwardauth.authResponseHeaders: X-PublicAdmin-UserId,X-Superion-Login
+
+
+        traefik.http.services.pac-tenant-abc-traefikauth-service.loadbalancer.server.port: 80
+        traefik.http.routers.pac-tenant-abc-traefikauth.rule: HostRegexp(`{tenant:[a-z]+}.publicadmin.devlocal`) && PathPrefix(`/signin-{tenant:[a-z]+}`)
+        traefik.http.routers.pac-tenant-abc-traefikauth.entrypoints: "http"
+        traefik.http.routers.pac-tenant-abc-traefikauth.service: pac-tenant-abc-traefikauth-service
+    logging:
+      options:
+        tag: "{{.ImageName}}/{{.Name}}/{{.ID}}"
+
+volumes:
+  emc-site:
+    external: true
+
+networks:
+  edge-overlay:
+    external: true

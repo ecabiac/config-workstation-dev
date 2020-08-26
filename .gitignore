@@ -1,0 +1,4 @@
+# private certs / keys
+
+*.key
+*.key.pem

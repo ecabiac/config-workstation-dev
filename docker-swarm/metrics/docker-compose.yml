@@ -1,0 +1,76 @@
+---
+
+version: '3.7'
+
+services:
+  prometheus:
+    image: prom/prometheus
+    command: |
+      --config.file=/usr/local/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus
+      --web.console.libraries=/usr/share/prometheus/console_libraries
+      --web.console.templates=/usr/share/prometheus/consoles
+    networks:
+      edge-overlay:
+    ports:
+      - target: 9090
+        protocol: tcp
+        mode: host
+    volumes:
+      - "prometheus-config:/usr/local/etc/prometheus/"
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      labels:
+        SERVICE_IGNORE:
+
+        # traefik v2 configs
+        traefik.enable: "true"
+        traefik.http.routers.prometheus.entrypoints: http,https
+        traefik.http.routers.prometheus.service: prometheus-service
+        traefik.http.routers.prometheus.rule: Host(`prometheus.docker.devlocal`)
+        traefik.http.services.prometheus-service.loadbalancer.server.port: 9090
+
+  grafana:
+    image: grafana/grafana
+    networks:
+      edge-overlay:
+    ports:
+      - target: 3000
+        published: 3000
+        protocol: tcp
+        mode: host
+    volumes:
+      - grafana-lib:/var/lib/grafana
+      - grafana-etc:/etc/grafana
+      - grafana-log:/var/log/grafana
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      labels:
+        SERVICE_IGNORE:
+
+        # traefik v2 configs
+        #traefik.enable: "false"
+        traefik.enable: "true"
+        traefik.http.routers.grafana.entrypoints: http,https
+        traefik.http.routers.grafana.service: grafana-service
+        traefik.http.routers.grafana.rule: Host(`grafana.docker.devlocal`)
+        traefik.http.services.grafana-service.loadbalancer.server.port: 3000
+        
+networks:
+  edge-overlay:
+    external: true
+
+volumes:
+  prometheus-config:
+    external: true
+  grafana-lib:
+    external: true
+  grafana-etc:
+    external: true
+  grafana-log:
+    external: true

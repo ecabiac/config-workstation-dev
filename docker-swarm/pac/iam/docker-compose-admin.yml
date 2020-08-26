@@ -1,0 +1,55 @@
+---
+
+version: '3.7'
+
+
+services:
+
+  realms-admin:
+    
+    image: realms-admin:202008061357
+    working_dir: /opt/psgov/realms/app/
+    networks:
+      edge-overlay:
+        #aliases:
+        #  - master.publicadmin.devlocal
+      mesh-overlay:
+    ports:
+      - target: 80
+        protocol: tcp
+        mode: host
+    environment:
+        ASPNETCORE_ENVIRONMENT: Development
+        openid__Authority: http://sso.publicadmin.devlocal/master
+        openid__RequireHttpsMetadata: "false"
+        openid__GetClaimsFromUserInfoEndpoint: "true"
+        openid__ResponseType: "code id_token"
+        openid__ClientId: "master-admin-console"
+        openid__ClientSecret: "Secret"
+        openid__CallbackPath: "/realms-admin/signin-master"
+        openid__UseTokenLifetime: "false"
+        openid__SaveTokens: "true"
+        openid__Scope: '["openid", "profile", "realms-admin"]'
+        openid__TokenValidationParameters__NameClaimType: name
+        openid__TokenValidationParameters__RoleClaimType: roles
+        PATH_BASE: /realms-admin
+
+        IAM_CONFIG_API_URL: http://iam-api.pac-iam.devlocal
+        ROSTER_API_URL:     http://roster.pac-iam.devlocal/
+    labels:
+      # registrator configs
+      SERVICE_IGNORE: "true"
+    deploy:
+      labels:
+        SERVICE_IGNORE: "true"
+
+        # traefik v2 configs
+        traefik.enable: "true"
+        traefik.docker.network: edge-overlay
+        traefik.http.routers.realms-admin.entrypoints: http,https
+        traefik.http.routers.realms-admin.rule: Host(`master.publicadmin.devlocal`) && PathPrefix(`/realms-admin`)
+        traefik.http.services.realms-admin-service.loadbalancer.server.port: 80
+    logging:
+      options:
+        tag: "{{.ImageName}}/{{.Name}}/{{.ID}}"
+    

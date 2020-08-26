@@ -1,0 +1,44 @@
+---
+
+version: '3.7'
+
+
+services:
+
+  roster:
+    image: superioncloud.azurecr.io/pac/cloud/rosterapi:roster_master_20200819.1
+    networks:
+      edge-overlay:
+        aliases:
+          - roster.publicadmin.devlocal
+      mesh-overlay:
+        aliases:
+          - roster.pac-iam.devlocal
+    ports:
+      - target: 80
+        protocol: tcp
+        mode: host
+    environment:
+      Roster_DB_ConnectionString: Server=sql_sqllinux;Database=roster2;User Id=sa;Password=P@ssword1;
+      DB_SERVER: sql_sqllinux
+      DB_NAME: roster2
+      DB_USER: sa
+      DB_PASSWORD: P@ssword1
+      SKIP_MIGRATE: "true"
+      SERVICE_TAGS: version=1.0.0
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      labels:
+        SERVICE_NAME: roster
+
+        # traefik v2 configs
+        traefik.enable: "true"
+        traefik.http.routers.roster.entrypoints: http,https
+        traefik.http.routers.roster.rule: Host(`roster.publicadmin.devlocal`)
+        traefik.http.services.roster-service.loadbalancer.server.port: 80
+    logging:
+      options:
+        tag: "{{.ImageName}}/{{.Name}}/{{.ID}}"

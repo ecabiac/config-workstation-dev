@@ -1,0 +1,75 @@
+---
+version: '3.7'
+
+services:
+
+  identity:
+    
+    image: superioncloud.azurecr.io/pac/cloud/identity-server:pac-identityserver_master_20200819.1
+    environment:
+
+      # This is so we can disable forcing https
+      ASPNETCORE_ENVIRONMENT: Development
+
+      #IDSRV__PublicOrigin: https://sso.publicadmin.devlocal
+      
+      WEBSERV__ForwardedProtoHeader: X-Forwarded-Proto
+      WEBSERV__OverrideProto: https
+      WEBAPP__EnableDiagnostics: "true"
+      WEBAPP__EnableHome: "true"
+      WEBAPP__EnableDevExceptionPage: "true"
+
+      SERVICES__DIRECTORY__ROSTER__BaseAddress: http://roster.pac-iam.devlocal
+      SERVICES__MANAGEMENT__IAMAPI__BaseAddress: http://iam-api.pac-iam.devlocal
+      SERVICES__GRANTS__REDIS__ConnectionString: "redis:6379"
+
+      DPAPI__STORAGE__RedisStorage__ConnectionString: "redis:6379"
+      DPAPI__STORAGE__RedisStorage__Key: "identityserver-aspnet-keys"
+
+      SIGNCRED__Test: "true"
+  
+    ports:
+      - target: 80
+        protocol: tcp
+        mode: host
+    networks:
+      edge-overlay:
+        #aliases:
+          # on a developer's host machine, the HOSTS file would
+          # contain an entry to resolve the following to 127.0.0.1
+          # which will then be handled by traefik.
+          # This alias is needed so that containers (which do not use
+          # the HOSTS file from the host machine) can resolve as well.
+          # - sso.publicadmin.devlocal
+      mesh-overlay:
+      default:
+    secrets:
+      - KEY_VAULT_SECRET
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/healthprobe"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      SERVICE_NAME: identity-server
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      labels:
+        SERVICE_NAME: identity-server
+
+        # traefik v2 configs
+        traefik.enable: "true"
+        traefik.docker.network: edge-overlay
+        traefik.http.routers.identity.entrypoints: http,https
+        traefik.http.routers.identity.rule: Host(`sso.publicadmin.devlocal`)
+        traefik.http.services.identity-service.loadbalancer.server.port: 80
+
+secrets:
+  KEY_VAULT_SECRET:
+    external: true
+    name: pac-iam_key-vault-secret

@@ -1,0 +1,54 @@
+---
+version: '3.7'
+
+services:
+
+  # a shared database server
+  sqllinux:
+    image: mcr.microsoft.com/mssql/server:2017-CU14-ubuntu
+    ports:
+      # binding port 1433 to host port 1433 makes life easier
+      # as that is the port that tools will assume for
+      # SQL server. If we have local instance of SQL Server
+      # running and listening on 1433, we would have to
+      # publish to a different port.
+      - target: 1433
+        published: 1433
+        protocol: tcp
+        mode: host
+    networks:
+      mesh-overlay:
+        aliases:
+          - sql_sqllinux
+          - sqllinux.devlocal
+    environment:
+      SA_PASSWORD: "P@ssword1"
+      ACCEPT_EULA: "Y"
+    labels:
+      # registrator configs
+      SERVICE_NAME: sqllinux
+      SERVICE_1433_NAME: sqllinux
+      SERVICE_TAGS: db
+    deploy:
+      labels:
+        # traefik v2 configs
+        traefik.enable: "false"
+    volumes:
+      - "sqllinux_master:/var/opt/mssql"
+      - "sqllinux_data:/srv/mssql/data"
+      - "sqllinux_backup:/srv/mssql/backup"
+    logging:
+      options:
+        tag: "{{.ImageName}}/{{.Name}}/{{.ID}}"
+
+networks:
+  mesh-overlay:
+    external: true
+
+volumes:
+  sqllinux_master:
+    external: true
+  sqllinux_data:
+    external: true
+  sqllinux_backup:
+    external: true

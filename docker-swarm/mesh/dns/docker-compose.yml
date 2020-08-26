@@ -1,0 +1,57 @@
+---
+version: '3.7'
+
+
+services:
+
+  dnsmasq:
+    image: jpillora/dnsmasq
+    #command: |
+    #--conf-file=/
+    #entrypoint: ["webproc", "--config", "/etc/dnsmasq.conf","--","dnsmasq","--no-daemon","--user=nobody"]
+    entrypoint: ["dnsmasq","--no-daemon","--user=nobody"]
+    privileged: true
+    environment:
+      HTTP_USER: foo
+      HTTP_PASS: bar
+    networks:
+      mesh-overlay:
+    ports:
+      - target: 53
+        published: 5353
+        protocol: tcp
+        mode: host
+      - target: 8080
+        published: 5380
+        protocol: tcp
+        mode: host
+
+    labels:
+      # registrator configs
+      SERVICE_IGNORE: "true"
+
+    deploy:
+      replicas: 1
+    configs:
+      - source: dnsmasq-conf
+        target: /etc/dnsmasq.conf
+    volumes:
+      - "dnsmasq-config:/etc"
+    logging:
+      options:
+        tag: "{{.ImageName}}/{{.Name}}/{{.ID}}"
+
+
+
+networks:
+  # mesh-overlay lets app communicate with each other
+  mesh-overlay:
+    external: true
+
+volumes:
+  dnsmasq-config:
+    external: true
+
+configs:
+  dnsmasq-conf:
+    file: ./files/dnsmasq.conf

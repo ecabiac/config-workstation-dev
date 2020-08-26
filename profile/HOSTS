@@ -1,0 +1,45 @@
+
+# Notes: The Operating System does not read the "#" symbol #
+# You can create your own notes, after the # symbol        #
+# This *must* be the first line: 127.0.0.1     localhost   #
+#                                                          #
+
+127.0.0.1 localhost
+::1 localhost #[IPv6]
+
+##################################################
+#                                                #
+#          Local Development Setup               #
+#                                                #
+#                                                #
+##################################################
+127.0.0.1 traefik.docker.devlocal traefik2.docker.devlocal
+
+127.0.0.1 traefik2.k8s.devlocal
+127.0.0.1 whoami.k8s.devlocal
+
+127.0.0.1 docker.devlocal consul.docker.devlocal rabbitmq.docker.devlocal rabbitmq-manage.docker.devlocal grafana.docker.devlocal prometheus.docker.devlocal
+127.0.0.1 keycloak.docker.devlocal keycloakdb.docker.devlocal
+127.0.0.1 smtp4dev.docker.devlocal
+127.0.0.1 redis.docker.devlocal
+
+##################################################
+#                                                #
+#          PA Cloud - Local Development          #
+#                                                #
+##################################################
+
+# PA Cloud: Traefik
+127.0.0.1 publicadmin.devlocal
+127.0.0.1 sso.publicadmin.devlocal
+127.0.0.1 roster.publicadmin.devlocal
+127.0.0.1 iam-api.publicadmin.devlocal
+127.0.0.1 realms-admin.publicadmin.devlocal
+
+127.0.0.1 master.publicadmin.devlocal
+
+127.0.0.1 chico.publicadmin.devlocal
+127.0.0.1 chico.admin.publicadmin.devlocal
+127.0.0.1 chico.finance.publicadmin.devlocal
+127.0.0.1 chico.community.publicadmin.devlocal
+127.0.0.1 chico.utilities.publicadmin.devlocal

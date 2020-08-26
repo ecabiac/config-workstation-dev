@@ -1,0 +1,84 @@
+version: "3.7"
+services:
+  app:
+    image: jboss/keycloak:10.0.1
+    environment:
+      PROXY_ADDRESS_FORWARDING: 'true'
+      KEYCLOAK_USER: admin
+      KEYCLOAK_PASSWORD: Password
+      DB_DATABASE: keycloak
+      DB_PASSWORD: keycloak_password
+      DB_ADDR: keycloak_db
+      DB_USER: keycloak
+      DB_VENDOR: mariadb
+      JGROUPS_DISCOVERY_PROTOCOL: JDBC_PING      
+      JGROUPS_DISCOVERY_PROPERTIES: datasource_jndi_name=java:jboss/datasources/KeycloakDS,info_writer_sleep_time=500
+    networks:
+      - keycloak
+      - edge-overlay
+    ports:
+      - target: 8080
+        protocol: tcp
+        mode: host
+    deploy:
+      replicas: 1
+      labels:
+        SERVICE_IGNORE:
+
+        # traefik v2 configs
+        traefik.enable: "true"
+        traefik.http.routers.keycloak.entrypoints: http,https
+        traefik.http.routers.keycloak.service: keycloak-service
+        traefik.http.routers.keycloak.rule: Host(`keycloak.docker.devlocal`)
+        traefik.http.services.keycloak-service.loadbalancer.server.port: 8080
+
+
+  db:
+    image: mariadb:10.5.2
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: keycloak
+      MYSQL_USER: keycloak
+      MYSQL_PASSWORD: keycloak_password
+    networks:
+      - keycloak
+    volumes:
+      - "keycloakdb:/var/lib/mysql"
+    deploy:
+      labels:
+        SERVICE_IGNORE:
+
+        # traefik v2 configs
+        traefik.enable: "false"
+
+
+  adminer:
+    image: adminer
+    ports:
+      - target: 8080
+        protocol: tcp
+        mode: host
+    networks:
+      - keycloak
+      - edge-overlay
+    deploy:
+      replicas: 1
+      labels:
+        SERVICE_IGNORE:
+
+        # traefik v2 configs
+        traefik.enable: "true"
+        traefik.http.routers.keycloakdb.entrypoints: http
+        traefik.http.routers.keycloakdb.service: keycloakdb-service
+        traefik.http.routers.keycloakdb.rule: Host(`keycloakdb.docker.devlocal`)
+        traefik.http.services.keycloakdb-service.loadbalancer.server.port: 8080
+
+networks:
+  edge-overlay:
+    external: true
+  keycloak:
+    external: true
+
+volumes:
+  keycloakdb:
+    external: true

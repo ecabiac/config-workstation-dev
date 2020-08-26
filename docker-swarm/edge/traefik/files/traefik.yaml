@@ -1,0 +1,68 @@
+################################################################
+# This is the static configuration file for Traefik
+################################################################
+
+entryPoints:
+
+  # HTTP endpoint over standard port
+  http:
+    address: ":80"
+
+  # HTTPS endpoint over standard port
+  https:
+    address: ":443"
+
+    http:
+      tls:
+        domains:
+          - main: "docker.devlocal"
+            sans: ["*.docker.devlocal"]
+          - main: "publicadmin.devlocal"
+            sans: ["*.publicadmin.devlocal"]
+
+  # entrypoint for the api
+  traefik:
+    address: ":8080"
+
+  #[entryPoints.sqltcp]
+  #  address = ":1433"
+
+  amqp:
+    address: ":5672"
+
+providers:
+  providersThrottleDuration: 30
+
+  ################################################################
+  # Docker configuration backend
+  ################################################################
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    watch: true
+    exposedByDefault: false
+    #useBindPortIP: true
+    swarmMode: true
+    network: "edge-overlay"
+    swarmModeRefreshSeconds: "15s"
+
+  file:
+    directory: "/usr/share/traefik/"
+    watch: true
+    fileName : "traefik-dynamic.yaml"
+    debugLogGeneratedTemplate: true
+
+################################################################
+# Traefik API and dashboard configuration
+################################################################
+api:
+  insecure: true
+  dashboard: true
+  debug: true
+
+log:
+  level: "INFO"
+
+accessLog: {}
+
+metrics:
+  prometheus: {}

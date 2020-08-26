@@ -1,0 +1,91 @@
+---
+version: "3.7"
+
+services:
+  kong-database:
+    image: cassandra:3.11.5
+    ports:
+      - target: 9042
+        #published: 9042
+        protocol: tcp
+        mode: host
+    volumes:
+      - kong-cassandra:/var/lib/cassandra
+    networks:
+      - kong-net
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1.5G
+        reservations:
+          memory: 1G
+
+
+  kong:
+    image: kong:2.0.1
+    deploy:
+      replicas: 1
+      labels:
+        # traefik v2 configs
+        traefik.http.routers.kongadmin.entrypoints: http,https
+        traefik.http.routers.kongadmin.rule: Host(`kong.docker.devlocal`)
+        traefik.http.services.kongadmin-service.loadbalancer.server.port: 8001
+    environment:
+      - KONG_DATABASE=cassandra
+      - KONG_CASSANDRA_CONTACT_POINTS=kong_kong-database
+      - KONG_PROXY_ACCESS_LOG=/dev/stdout
+      - KONG_ADMIN_ACCESS_LOG=/dev/stdout
+      - KONG_PROXY_ERROR_LOG=/dev/stderr
+      - KONG_ADMIN_ERROR_LOG=/dev/stderr
+      - KONG_ADMIN_LISTEN=0.0.0.0:8001, 0.0.0.0:8444 ssl
+    ports:
+      - target: 8000
+        published: 8000
+        protocol: tcp
+        mode: host
+      - target: 8443
+        published: 8443
+        protocol: tcp
+        mode: host
+      - target: 8001
+        published: 8001
+        protocol: tcp
+        mode: host
+      - target: 8444
+        published: 8444
+        protocol: tcp
+        mode: host
+    networks:
+      - kong-net
+      - edge-overlay
+
+  konga:
+    image: pantsel/konga
+    deploy:
+      replicas: 1
+      labels:
+        # traefik v2 configs
+        traefik.http.routers.konga.entrypoints: http,https
+        traefik.http.routers.konga.rule: Host(`konga.docker.devlocal`)
+        traefik.http.services.konga-service.loadbalancer.server.port: 1337
+    ports:
+      - target: 1337
+        published: 1337
+        protocol: tcp
+        mode: host
+    networks:
+      - kong-net
+      - edge-overlay
+
+
+networks:
+  kong-net:
+    external: true
+  edge-overlay:
+    external: true
+
+
+volumes:
+  kong-cassandra:
+    external: true

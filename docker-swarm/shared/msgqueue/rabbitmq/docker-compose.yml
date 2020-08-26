@@ -1,0 +1,103 @@
+version: "3.7"
+services:
+  rabbitmq-01:
+    #image: rabbitmq:3.8.2-management
+    image: emc/rabbitmq-consul:3.8.2-management
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=Passw0rd
+      - RABBITMQ_ERLANG_COOKIE="MY-SECRET-KEY-123"
+    networks:
+      - edge-overlay
+    ports:
+      - target: 15672
+        protocol: tcp
+        mode: host
+      - target: 5672
+        published: 8672
+        protocol: tcp
+        mode: host
+    volumes:
+      - rabbitmq-01-data:/var/lib/rabbitmq
+    deploy:
+      labels:
+        SERVICE_IGNORE:
+
+        # traefik v2 configs
+        traefik.enable: "true"
+        traefik.http.routers.rabbitmq-manage.entrypoints: http,https
+        traefik.http.routers.rabbitmq-manage.service: rabbitmq-manage-service
+        traefik.http.routers.rabbitmq-manage.rule: Host(`rabbitmq-manage.docker.devlocal`)
+        traefik.http.services.rabbitmq-manage-service.loadbalancer.server.port: 15672
+        
+        traefik.tcp.routers.rabbitmq-amqp.entrypoints: amqp
+        traefik.tcp.routers.rabbitmq-amqp.service: rabbitmq-amqp-service
+        traefik.tcp.routers.rabbitmq-amqp.tls: "false"
+
+        traefik.tcp.routers.rabbitmq-amqp.rule: HostSNI(`*`)
+        traefik.tcp.services.rabbitmq-amqp-service.loadbalancer.server.port: 5672
+
+  rabbitmq-02:
+    #image: rabbitmq:3.8.2-management
+    image: emc/rabbitmq-consul:3.8.2-management
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=Passw0rd
+      - RABBITMQ_ERLANG_COOKIE="MY-SECRET-KEY-123"
+    networks:
+      - edge-overlay
+    volumes:
+      - rabbitmq-02-data:/var/lib/rabbitmq
+    deploy:
+      labels:
+        SERVICE_IGNORE:
+
+        # traefik v2 configs
+        traefik.enable: "true"
+        traefik.http.routers.rabbitmq-manage.entrypoints: http,https
+        traefik.http.routers.rabbitmq-manage.service: rabbitmq-manage-service
+        traefik.http.routers.rabbitmq-manage.rule: Host(`rabbitmq-manage.docker.devlocal`)
+        traefik.http.services.rabbitmq-manage-service.loadbalancer.server.port: 15672
+        
+        traefik.tcp.routers.rabbitmq-amqp.entrypoints: amqp
+        traefik.tcp.routers.rabbitmq-amqp.service: rabbitmq-amqp-service
+        traefik.tcp.routers.rabbitmq-amqp.tls: "false"
+
+        traefik.tcp.routers.rabbitmq-amqp.rule: HostSNI(`*`)
+        traefik.tcp.services.rabbitmq-amqp-service.loadbalancer.server.port: 5672
+
+  rabbitmq-03:
+    image: emc/rabbitmq-consul:3.8.2-management
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=Passw0rd
+      - RABBITMQ_ERLANG_COOKIE="MY-SECRET-KEY-123"
+    networks:
+      - edge-overlay
+    volumes:
+      - rabbitmq-03-data:/var/lib/rabbitmq
+    deploy:
+      labels:
+        SERVICE_IGNORE:
+
+        # traefik v2 configs
+        traefik.enable: "true"
+        traefik.http.routers.rabbitmq-manage.entrypoints: http,https
+        traefik.http.routers.rabbitmq-manage.service: rabbitmq-manage-service
+        traefik.http.routers.rabbitmq-manage.rule: Host(`rabbitmq-manage.docker.devlocal`)
+        traefik.http.services.rabbitmq-manage-service.loadbalancer.server.port: 15672
+        
+        traefik.tcp.routers.rabbitmq-amqp.entrypoints: amqp
+        traefik.tcp.routers.rabbitmq-amqp.service: rabbitmq-amqp-service
+        traefik.tcp.routers.rabbitmq-amqp.tls: "false"
+
+        traefik.tcp.routers.rabbitmq-amqp.rule: HostSNI(`*`)
+        traefik.tcp.services.rabbitmq-amqp-service.loadbalancer.server.port: 5672
+
+networks:
+  edge-overlay:
+    external: true
+volumes:
+  rabbitmq-01-data:
+  rabbitmq-02-data:
+  rabbitmq-03-data:

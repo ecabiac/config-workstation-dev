@@ -1,0 +1,18 @@
+---
+
+version: '3.7'
+
+# This stack uses 3 networks:
+# - edge-overlay: the network over which Traefik routes edge requests.
+# - mesh-overlay: the primary network for the swarm over which all 
+#   inter-stack communication occurs
+# - default: a private network for this stack for internal components
+#   such as redis. 
+
+
+networks:
+  edge-overlay:
+    external: true
+  mesh-overlay:
+    external: true
+  default:

@@ -1,0 +1,184 @@
+---
+version: '3.7'
+
+
+services:
+
+  # The "server" service sets up a cluster with 3 server nodes.
+  # In a production environment, we would want these nodes to
+  # be deployed to different physical machines, and ideally to
+  # different zones.
+  # As an example of how this could be configured, imagine that we
+  # assign a label to our single docker swarm node with the value
+  # "zones_x1=A". The key is just a token without any semantics,
+  # but in this case is  to indicate our node is
+  # in "Zone A" in a single zone scheme. 
+  consulserver:
+    image: consul:1.7.2
+    command: |
+      agent -ui -server
+      -client "0.0.0.0"
+      -bind='{{ GetInterfaceIP "eth0" }}'
+      -advertise='{{ GetInterfaceIP "eth0" }}'
+      -datacenter="devlocal"
+      -retry-join="consulserver.mesh.devlocal"
+      -encrypt="r17mGUbowVkYC3Xo7dW+PQ=="
+      -bootstrap-expect=3
+    environment:
+      CONSUL_LOCAL_CONFIG:
+          '{
+             "leave_on_terminate": true,
+             "connect":
+             {
+               "enabled": true
+             }
+          }'
+    # It seems that when a healthcheck is configured, the nodes refuse to allow connections
+    # until they are healthy - but this causes a deadlock during cluster bootstrap. The 
+    # healthcheck does seem to work properly in upgrade scenarios.
+    #healthcheck:
+    #  test: curl -f http://localhost:8500/v1/health/service/consul || exit 1
+    #  interval: 30s
+    #  timeout: 5s
+    #  retries: 3
+    #  start_period: 1m
+    networks:
+      mesh-overlay:
+        aliases:
+          - consulserver.mesh.devlocal
+    
+    stop_grace_period: 1m30s
+
+    labels:
+      # registrator configs
+      SERVICE_IGNORE: "true"
+
+    deploy:
+      replicas: 3
+      endpoint_mode: dnsrr
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      update_config:
+        parallelism: 1
+        delay: 1m
+        order: stop-first
+      labels:
+        # traefik v2 configs
+        traefik.enabled: "false"
+      placement:
+        preferences:
+          - spread: node.labels.zones_x1
+    logging:
+      options:
+        tag: "{{.ImageName}}/{{.Name}}/{{.ID}}"
+
+
+  # run a single consul client and explicitly bind its ports to the host.
+  # Since this is for a single-node development environment, this
+  # will serve as the agent for all services in the environment
+  consulclient:
+    image: consul:1.7.2
+    command: |
+        agent -ui
+        -client='0.0.0.0'
+        -bind='{{ GetInterfaceIP "eth1" }}'
+        -advertise='{{ GetInterfaceIP "eth1" }}'
+        -grpc-port 8502
+        -datacenter="devlocal"
+        -retry-join="consulserver.mesh.devlocal"
+        -encrypt="r17mGUbowVkYC3Xo7dW+PQ=="
+    environment:
+      CONSUL_LOCAL_CONFIG: 
+          '{
+             "leave_on_terminate": true,
+             "connect": 
+             { 
+               "enabled": true
+             }
+          }'
+      CONSUL_ALLOW_PRIVILEGED_PORTS: "true"
+    networks:
+      # The order of the networks is important as it relates to the names
+      # of the container's network adapters.
+      mesh-overlay:
+        aliases:
+          - consulclient.mesh.devlocal
+      edge-overlay:
+        aliases:
+          - consul.docker.devlocal
+      
+    ports:
+      # 8500 is the port for the API and the GUI
+      - target: 8500
+        published: 8500
+        protocol: tcp
+        mode: host
+      
+      # By default, Consul provides a DNS service over port (8600) instead 
+      # of port (53).
+      # We can achieve a balance of security and functionality by running
+      # the service on  port (53) in the container, but publishing to the
+      # host using Consul's default port (8600)
+      - target: 53
+        published: 8600
+        protocol: tcp
+        mode: host 
+        
+      - target: 53
+        published: 8600
+        protocol: udp
+        mode: host 
+       
+      ## Consul uses  port 8600 as its default for DNS.
+      ## let's publish it on the host as well
+      ## This requires a DNS interface such as BIND or DNSMASQ
+      ## in order to forward properly.
+      #- target: 8600
+      #  published: 8600
+      #  protocol: tcp
+      #  mode: host 
+      #- target: 8600
+      #  published: 8600
+      #  protocol: udp
+      #  mode: host
+
+    labels:
+      # registrator configs
+      SERVICE_IGNORE: "true"
+    stop_grace_period: 1m30s
+    deploy:
+      replicas: 0
+      endpoint_mode: dnsrr
+      restart_policy:
+        condition: on-failure
+        delay: 1m
+        max_attempts: 3
+      update_config:
+        order: stop-first
+      labels:
+        # traefik v2 configs
+        traefik.enable: "true"
+        traefik.http.routers.consulclient.entrypoints: http
+        traefik.http.routers.consulclient.rule: Host(`consul.docker.devlocal`)
+        traefik.http.services.consulclient-service.loadbalancer.server.port: 8500
+    volumes:
+      - "consul_client:/etc/consul/"
+    logging:
+      options:
+        tag: "{{.ImageName}}/{{.Name}}/{{.ID}}"
+
+
+networks:
+  # edge-overlay network is for exposing services via traefik
+  edge-overlay:
+    external: true
+  # mesh-overlay for communicating between docker services
+  mesh-overlay:
+    external: true
+
+
+volumes:
+  consul_client:
+    external: true

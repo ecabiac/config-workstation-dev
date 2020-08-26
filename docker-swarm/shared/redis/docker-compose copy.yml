@@ -1,0 +1,141 @@
+---
+version: '3.7'
+
+services:
+
+  standalone:
+    image: redis:5.0.7
+    command: |
+      redis-server --appendonly yes
+    sysctls:
+      net.core.somaxconn: 1024
+      net.ipv4.tcp_syncookies: 0
+    networks:
+      mesh-overlay:
+    ports:
+      - target: 6379
+        published: 6379
+        protocol: tcp
+        mode: host
+    deploy:
+      endpoint_mode: dnsrr
+      labels:
+        treafik.enable: "false"
+    logging:
+      options:
+        tag: "{{.ImageName}}/{{.Name}}/{{.ID}}"
+
+  slave:
+    image: redis:5.0.7
+    command: |
+      redis-server --slaveof standalone 6379
+    sysctls:
+      net.core.somaxconn: 1024
+      net.ipv4.tcp_syncookies: 0
+    networks:
+      mesh-overlay:
+    ports:
+      - target: 6379
+        protocol: tcp
+        mode: host
+    deploy:
+      endpoint_mode: dnsrr
+      labels:
+        treafik.enable: "false"
+    logging:
+      options:
+        tag: "{{.ImageName}}/{{.Name}}/{{.ID}}"
+
+
+  sentinel1:
+    image: redis:5.0.7
+    command: |
+      redis-server /usr/local/etc/redis/sentinel.conf --sentinel
+    sysctls:
+      net.core.somaxconn: 1024
+      net.ipv4.tcp_syncookies: 0
+    networks:
+      mesh-overlay:
+    ports:
+      - target: 6379
+        protocol: tcp
+        mode: host
+    volumes:
+      #- redis-sentinel-1:/usr/local/etc/redis/sentinel.conf
+      - ./files/sentinel1.conf:/usr/local/etc/redis/sentinel.conf
+    deploy:
+      endpoint_mode: dnsrr
+      replicas: 1
+#      update_config:
+#        parallelism: 1
+#        delay: 30s
+#        order: start-first
+      labels:
+        treafik.enable: "false"
+    logging:
+      options:
+        tag: "{{.ImageName}}/{{.Name}}/{{.ID}}"
+
+  sentinel2:
+    image: redis:5.0.7
+    command: |
+      redis-server /usr/local/etc/redis/sentinel.conf --sentinel
+    sysctls:
+      net.core.somaxconn: 1024
+      net.ipv4.tcp_syncookies: 0
+    networks:
+      mesh-overlay:
+    ports:
+      - target: 6379
+        protocol: tcp
+        mode: host
+    volumes:
+      #- redis-sentinel-2:/usr/local/etc/redis/sentinel.conf
+      - ./files/sentinel2.conf:/usr/local/etc/redis/sentinel.conf
+    deploy:
+      endpoint_mode: dnsrr
+      replicas: 1
+#      update_config:
+#        parallelism: 1
+#        delay: 30s
+#        order: start-first
+      labels:
+        treafik.enable: "false"
+    logging:
+      options:
+        tag: "{{.ImageName}}/{{.Name}}/{{.ID}}"
+
+  sentinel3:
+    image: redis:5.0.7
+    command: |
+      redis-server /usr/local/etc/redis/sentinel.conf --sentinel
+    sysctls:
+      net.core.somaxconn: 1024
+      net.ipv4.tcp_syncookies: 0
+    networks:
+      mesh-overlay:
+    ports:
+      - target: 6379
+        protocol: tcp
+        mode: host
+    volumes:
+      #- redis-sentinel-3:/usr/local/etc/redis/sentinel.conf
+      - ./files/sentinel3.conf:/usr/local/etc/redis/sentinel.conf
+    deploy:
+      endpoint_mode: dnsrr
+      replicas: 1
+#      update_config:
+#        parallelism: 1
+#        delay: 30s
+#        order: start-first
+      labels:
+        treafik.enable: "false"
+    logging:
+      options:
+        tag: "{{.ImageName}}/{{.Name}}/{{.ID}}"
+
+networks:
+  edge-overlay:
+    external: true
+  mesh-overlay:
+    external: true

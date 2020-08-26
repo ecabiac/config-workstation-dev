@@ -1,0 +1,21 @@
+---
+
+version: '3.7'
+
+services:
+  ubuntu:
+    image: ecabiac/myubuntu
+    networks:
+      - edge-overlay
+    deploy:
+      replicas: 1
+      labels:
+        SERVICE_IGNORE:
+
+        # traefik v2 configs
+        traefik.enable: "false"
+
+
+networks:
+  edge-overlay:
+    external: true

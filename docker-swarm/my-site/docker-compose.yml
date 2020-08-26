@@ -1,0 +1,41 @@
+---
+version: '3.7'
+
+services:
+
+  site:
+    image: nginx:latest
+    command: ["nginx","-g","daemon off;"]
+    ports:
+      - target: 80
+        protocol: tcp
+        mode: host
+    networks:
+      edge-overlay:
+        aliases:
+          - start.docker.devlocal
+    labels:
+      # registrator configs
+      # no need to register with consul
+      SERVICE_IGNORE: "true"
+
+    deploy:
+      labels:
+        # traefik v2 configs
+        traefik.enable: "true"
+        traefik.http.routers.emcsite.entrypoints: http
+        traefik.http.routers.emcsite.rule: Host(`start.docker.devlocal`)
+        traefik.http.services.emcsite-service.loadbalancer.server.port: 80
+    volumes:
+      - "emc-site:/usr/share/nginx/html"
+    logging:
+      options:
+        tag: "{{.ImageName}}/{{.Name}}/{{.ID}}"
+
+volumes:
+  emc-site:
+    external: true
+
+networks:
+  edge-overlay:
+    external: true
