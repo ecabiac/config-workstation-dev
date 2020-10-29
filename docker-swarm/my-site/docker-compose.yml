@@ -4,8 +4,7 @@ version: '3.7'
 services:
 
   site:
-    image: nginx:latest
-    command: ["nginx","-g","daemon off;"]
+    image: containous/whoami
     ports:
       - target: 80
         protocol: tcp
@@ -14,23 +13,105 @@ services:
       edge-overlay:
         aliases:
           - start.docker.devlocal
-    labels:
-      # registrator configs
-      # no need to register with consul
-      SERVICE_IGNORE: "true"
 
     deploy:
       labels:
         # traefik v2 configs
         traefik.enable: "true"
-        traefik.http.routers.emcsite.entrypoints: http
-        traefik.http.routers.emcsite.rule: Host(`start.docker.devlocal`)
+        traefik.http.routers.emcsite.entrypoints: http,https
+        traefik.http.routers.emcsite.rule: Host(`start.docker.devlocal`) && PathPrefix(`/ziggy`)
+        traefik.http.routers.emcsite.middlewares: mysite-auth
+
         traefik.http.services.emcsite-service.loadbalancer.server.port: 80
+
+        # define the auth middleware we are using
+        traefik.http.middlewares.mysite-auth.forwardauth.address: http://mysite_auth/
+        traefik.http.middlewares.mysite-auth.forwardauth.trustForwardHeader: "true"
+        traefik.http.middlewares.mysite-auth.forwardauth.authResponseHeaders: X-PublicAdmin-UserId,X-Superion-Login,BearerResult,X-PublicAdmin-Username
+
     volumes:
       - "emc-site:/usr/share/nginx/html"
     logging:
       options:
         tag: "{{.ImageName}}/{{.Name}}/{{.ID}}"
+  
+  auth:
+    image: superioncloud.azurecr.io/pac/cloud/bouncer:bouncer_master_20200918.2
+    ports:
+      - target: 80
+        protocol: tcp
+        mode: host
+    networks:
+      edge-overlay:
+    environment:
+        PATH_BASE: /ziggy
+        auth_openid__Authority: https://sso.publicadmin.devlocal/master
+        auth_openid__RequireHttpsMetadata: "true"
+        auth_openid__GetClaimsFromUserInfoEndpoint: "true"
+        auth_openid__ResponseType: code id_token
+        auth_openid__ClientId: hello
+        auth_openid__ClientSecret: secret
+        auth_openid__CallbackPath: /ziggy/auth/signin-oidc
+        auth_openid__UseTokenLifetime: "false"
+        auth_openid__SaveTokens: "true"
+        auth_openid__UsePkce: "false"
+        auth_openid__Scopes: openid profile
+        auth_openid__TokenValidationParameters__ValidateIssuer: "true"
+        auth_openid__TokenValidationParameters__ValidateIssuerSigningKey: "true"
+        auth_openid__TokenValidationParameters__ValidIssuer: https://sso.publicadmin.devlocal/master
+        auth_openid__TokenValidationParameters__NameClaimType: name
+        auth_openid__TokenValidationParameters__RoleClaimType: roles
+        auth_openid__ProtocolValidator__RequireState: "false"
+        
+        # This endpoint is handled by the oidc auth middleware and will handle signout
+        # through the registered "schemes". Basically, when "Cookies" are configured as
+        # the default scheme, then calling this endpoint will signout of cookies. This
+        # is useful for us to configure this endpooint as the front-channel logout url
+        # (or back channel logout url).
+        # In the identity server clients table this needs to be an absolute URI for
+        # either frontchannel or backchannel
+        auth_openid__RemoteSignOutPath: /ziggy/auth/signout-front 
+        
+        # this is the path where the Identity Provider will redirect us IF signout was
+        # initiated by this client. The oidc auth middleware will handle this endpoint
+        # and if the state is valid, will cause a redirect to the SignedOutRedirectUri.
+        # This will only work when we choose 'SaveTokens' because the client needs to
+        # send the id token back to the identity server in order for the identity server
+        # to "trust" that the call is coming from the client instance.
+        # This must be a relative path here, but it needs to be configured in identity
+        # server `ClientPostLogoutRedirectUris` table as an Absolute Uri.
+        auth_openid__SignedOutCallbackPath: "/ziggy/auth/signout-callback-oidc"
+        auth_openid__SignedOutRedirectUri: https://traefik.docker.devlocal
+        
+
+        auth_cookies__Cookie__Name: mysite-auth
+        auth_cookies__Cookie__Path: /ziggy
+        auth_cookies__Cookie__HttpOnly: "true"
+
+        LOG_TOKENS: "true"
+        
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      update_config:
+        order: stop-first
+      labels:
+        
+        # We need to run this service on traefik so that it receives the call to /ziggy/auth/signin-oidc
+        traefik.enable: "true"
+        
+        traefik.http.routers.mysite-traefikauth.entrypoints: http,https
+        traefik.http.routers.mysite-traefikauth.rule: HostRegexp(`start.docker.devlocal`) && PathPrefix(`/ziggy/auth`)
+        
+        traefik.http.services.mysite-traefikauth-service.loadbalancer.server.port: 80
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200k"
+        max-file: "10"
 
 volumes:
   emc-site:
